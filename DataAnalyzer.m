@@ -192,7 +192,8 @@ fittype_text = uicontrol('Style','text','String','Fit with:','Position',[1200,42
 fittypelist = uicontrol('Style','listbox', 'min' , 0, 'max' , 1, 'Position', [1210, 335, 130,85]); %List of fit types (gaussian, lorenzian, etc)
 
 % Additional buttons
-nextnamecheck = uicontrol('Style','checkbox','String','Specify next name','Position',[870,165,120,20], 'Value', 0); %To check if each shot gives plot for fit
+nextname_text = uicontrol('Style','text','String','Specify next name:','Position',[870,185,100,20]); 
+nextnameOption = uicontrol('Style','popupmenu','String',{'None','Text','Text + Variable'},'Position',[870, 165, 120, 20]); %To check how name is specified for new image
 extractimgbut = uicontrol('Style','pushbutton','String','Extract roi to tiff','Position',[870,130,120,25], 'Callback', @extractimg_click); %To extract image in roi to tiff
 deltempbut = uicontrol('Style','pushbutton','String','Delete Temp Data','Position',[870,90,120,30], 'Callback', @deltemp_click); %Delete temporary data in database
 closefigsbut = uicontrol('Style','pushbutton','String','Close sub figures','Position',[870,20,120,25], 'Callback', @closefig_click); %Close all figures except GUI
@@ -263,7 +264,8 @@ deltempbut.Units = 'normalized';
 closefigsbut.Units = 'normalized';
 fitoutputnum_text.Units = 'normalized';
 fitoutputnum.Units = 'normalized';
-nextnamecheck.Units = 'normalized';
+nextname_text.Units = 'normalized';
+nextnameOption.Units = 'normalized';
 clearlastfitbut.Units = 'normalized';
 xvarincrement.Units = 'normalized';
 xvardecrement.Units = 'normalized';
@@ -358,8 +360,23 @@ function updateimgidlist()
         imgidlist=newimgidlist;
     end  
     if max(cell2mat(imgidlist)) > m
-        if get(nextnamecheck,'Value') == 1
+        if get(nextnameOption,'Value') == 2
             nextname=get(nextimgname,'String');
+            sqlquery2=['UPDATE images SET name ="', nextname,'" WHERE imageID = ', num2str(max(cell2mat(imgidlist)))];
+            curs2=exec(conn, sqlquery2);
+            close(curs2);
+        elseif get(nextnameOption, 'Value') == 3
+            namepart=get(nextimgname,'String');
+            %Determine variable value to add to name string
+            var_names=get(xvardropmenu,'String');
+            var_value=get(xvardropmenu,'Value');
+            var=var_names{var_value};            
+            sqlquery3=['SELECT ',var,' FROM ciceroout WHERE runID = (SELECT runID_fk FROM images ORDER BY imageID DESC LIMIT 1)'];
+            curs3=exec(conn, sqlquery3);
+            curs3=fetch(curs3);
+            varValue=num2str(cell2mat(curs3.Data));
+            close(curs3);
+            nextname=[namepart,' ',varValue];
             sqlquery2=['UPDATE images SET name ="', nextname,'" WHERE imageID = ', num2str(max(cell2mat(imgidlist)))];
             curs2=exec(conn, sqlquery2);
             close(curs2);
