@@ -1,19 +1,27 @@
 %% Content
 %{
-Functions defined in UI
-update_icon() - icons for various buttons are defined
+Functions in UI in order they are defined
+icon_update() - icons for various buttons are defined
 updateimgidlist() - update imageIDs for viewing list (continuously updated) (change number of images in list here)
 updatefitlist() - update list of fitting functions
+loadPCAbasis() - loads 'pwoaSave.mat' to create the starting basis for PCA
+makeEigenBasis(imageList) - makes an eigenbasis of the images in the argument
 updateanalysisdblist() - update imageIDs for analysis list 
 updatedblist() - update viewing list with help of imageIDs from updateimgidlist() 
 dblist_click(source, eventdata) - load image and info of selected imageID from viewing list(dblist)
 dblist_keypress(source, eventdata) - executes del_click on pressing delete key in dblist
 updatecurrentimginfo(currentimgid) - update all info boxes for selected imageID in viewing list
 framelist_click(source, eventdata) - load image on changing frame (Final, PWA, PWOA, DF)
+pca_click(~, ~) - load image on turning on/off PCA mode
 hdwmode_change(source, eventdata) - change mode (Normal vs Kinetics)
 colormapname_click (~, ~) - change colormap (Color vs B/W)
+getImgMode() - gets the image mode requested. 1 = normal, 2 = kinetics with two frames, 3 = kinetics all on one frame
 showimg(filenum) - plots image for selected imageID (called by dblist_click and other functions)
-data_det(a, imgmode, framenum) - determines data_roi from various parameters (for showimg, update, fit functions)
+doPCA(imgIn) - performs PCA on the selected PWA image using the global eigenBasis
+addToBasis(newImg) - adds a new col*row image to the PCA basis and updates the eigenbasis
+getImage(imgid,imgmode,framenum) - gets the requested image from the database
+data_evaluation(raw_data, imgmode, framenum) - in separate *.m file, determines data from various parameters (for showimg, update, fit functions)
+get_roi(imgid,imgmode,framenum) - gets the ROI as set by the cursors
 load_click(source, eventdata) - load particular imageID into viewing list
 save_click(source, eventdata) - save selected imageID in database permanently
 del_click(source, eventdata) - delete selected imageID from database
@@ -29,34 +37,41 @@ zoom_reset(source,~) - zoom reset to 100%
 pan_on(source,eventdata) - turn pan on
 rotate_on(source,eventdata) - rotate image by given angle
 enter_rotangle(source,~) - enter rotation angle
+rotinc_click(~,~)/rotdec_click(~,~) - callback function to increment/decrement rotangle
 curs_on(source, eventdata) - turn cursor on
 curs_update(), xl1_change(s,e), xl2_change(s,e), yl1_change(s,e), yl2_change(s,e) - update cursor position (xcurs, ycurs)
 update_but() - updates parameters (n count, width, etc) from image in roi
-n_count(data_roi) - calculate N Count of data_roi
-norm_n_count(data) - calaculate Norm N Count of data_roi
 fit_click(source, eventdata) - fits analysis list to selected fit function
+singlefit_click(~, ~) - fits single selected image from analysis list to selected fit function
 xvardet(anaimgidlist) - determine x variable for fitting (from file or database)
 cftool_click(source, eventdata) - opens cftool with data from results
 enter_fitxvar(source, eventdata) - enter position in file name for x variable
+xvarinc_click(~,~)/xvardec_click(~,~) - callback function to increment/decrement xvar
+yvarinc_click(~,~)/yvardec_click(~,~) - callback function to increment/decrement yvar
 updatexvardropmenu() - list of variables from database for x variable
 updatefittypelist() - set fit type list (Gaussian, linear, etc) 
 getfittype() - determine fit type for fit_click
+extractimg_click(~, ~) - to extract specified ROI of image shown in analyzer to tiff, opens prompt to specify destination
 deltemp_click(source, eventdata) - delete all images which are stored as 'temp'
 closefig_click(source, eventdata) - close all figures except GUI
 showanalysisimgid_click(source, eventdata) - show selected image from analysisdblist in img axes
 clearlastfit_click(source, eventdata) - clears data saved from last fit (required when fit after changing cursor or angle)
 nextimgname_enter(source, eventdata) - To update string of nextimgname edit box on pressing enter
+imgname_enter(~, eventdata)- To update string of imgname edit box on pressing enter
+globalShortcuts(source, eventdata)- Defines global shortcuts including Update and Fit buttons
+onClose(~, ~) - saves PCA data on closing the data analysis instance/figure%}
 %}
-
 %%
 function DataAnalyzer
 % This is version 1.0
-
 
 %  Create UI 
 f = figure('Name', 'Data Analysis Software','Visible','on','Position',[50,50,1600,950],'WindowKeyPressFcn',@globalShortcuts);
 
 [zoom_icon,pan_icon,curs_icon,rotate_icon]=icon_update();
+
+%Database Connection
+conn = database('becivdatabase', 'root', 'w0lfg4ng', 'Server', '18.62.27.10', 'Vendor', 'MySQL'); 
 
 % "Global" Variables
 col=1024;
@@ -69,7 +84,6 @@ pcaBasisSize = 50;
 pwoa = zeros(pcaBasisSize,col*row); % Reshaped probe without atom images to form a basis for pca.
 eigenBasis = 0; % Eigenbasis found with PCA.
 oldestImgIndex = 1; % Points to the oldest image in pwoaList, which should be replaced first.
-conn = database('becivdatabase', 'root', 'w0lfg4ng', 'Server', '18.62.27.10', 'Vendor', 'MySQL'); %Specify name of database here
 imgidlist=[];
 anaimgidlist=[];
 updateimgidlist();
@@ -87,13 +101,13 @@ autoupbox = uicontrol('Style','checkbox','String','Auto Update','Position',[895,
 
 % Mode of image in img
 framelist = uicontrol('Style','listbox', 'min' , 0, 'max' , 1, 'Position', [820, 690, 150,100], 'String', {'Absorption Image','Probe with Atoms','Probe without Atoms','Dark Field','Dark Field (Dual DF)'}, 'Callback', @framelist_click); %List of frames
-imgModeText = uicontrol('Style','text','String','Imaging Mode:','Position',[820 870 100 25]);
-imgMode = uicontrol('Style','popupmenu','String',{'Normal','Kinetics 2','Kinetics 3'},'Position',[820 840 100 30],'Callback',@hdwmode_change);
+imgModeText = uicontrol('Style','text','String','Imaging Mode:','Position',[820, 890, 70, 25]);
+imgMode = uicontrol('Style','popupmenu','String',{'Normal','Kinetics 2','Kinetics 3'},'Position',[820, 880, 80, 20],'Callback',@hdwmode_change);
 
 % PCA
-pcacbox = uicontrol('Style','checkbox','String','Apply PCA','Position',[930,850,100,20],'Value',0,'Callback',@pca_click);
-pcashowbox = uicontrol('Style','checkbox','String','Show PCA','Position',[930,880,100,20],'Value',0,'Callback',@pca_click);
-pcaTest = uicontrol('Style','checkbox','String','PCA Test','Position',[930,910,100,20],'Value',0,'Callback',@pca_click);
+pcacbox = uicontrol('Style','checkbox','String','Apply PCA','Position',[820,800,90,20],'Value',0,'Callback',@pca_click);
+pcashowbox = uicontrol('Style','checkbox','String','Show PCA','Position',[820,825,90,20],'Value',0,'Callback',@pca_click);
+pcaTest = uicontrol('Style','checkbox','String','PCA Test','Position',[820,850,90,20],'Value',0,'Callback',@pca_click);
 
 % Tool box for img
 zon = uicontrol('Style','togglebutton','CData', zoom_icon,'Position',[855,650,25,25], 'Callback', @zoom_on); %Zoom On for Img
@@ -110,11 +124,11 @@ rotdecrement = uicontrol('Style','pushbutton','String','-','Position',[880,610,2
 dblist = uicontrol('Style','listbox', 'min' , 0, 'max' , 400, 'Position', [50, 20, 350,280], 'Value', [], 'Callback', @dblist_click, 'KeyPressFcn', @dblist_keypress); %List from database
 
 %Buttons for dblist
-savebut = uicontrol('Style','pushbutton','String','Save','Position',[440,155,70,25], 'Callback', @save_click); %Save data from dblist to permanenet database
-loadbut = uicontrol('Style','pushbutton','String','Load','Position',[440,210,70,25], 'Callback', @load_click); %Load data manually (from permanenet database)
-delbut = uicontrol('Style','pushbutton','String','Delete','Position',[440,100,70,25], 'Callback', @del_click); %Delete data from dblist
-add2anabut = uicontrol('Style','pushbutton','String','Add2Analysis','Position',[440,265,70,25], 'Callback', @add2ana_click); %Add files selected in dblist to analysisdblist
-addnext = uicontrol('Style','checkbox','String','Add Next','Position',[440,240,120,20], 'Value', 0); %Add the next shot to analysisdblist
+savebut = uicontrol('Style','pushbutton','String','Save','Position',[440,145,90,25], 'Callback', @save_click); %Save data from dblist to permanenet database
+loadbut = uicontrol('Style','pushbutton','String','Load','Position',[440,200,90,25], 'Callback', @load_click); %Load data manually (from permanenet database)
+delbut = uicontrol('Style','pushbutton','String','Delete','Position',[440,90,90,25], 'Callback', @del_click); %Delete data from dblist
+add2anabut = uicontrol('Style','pushbutton','String','Add2Analysis(->)','Position',[440,265,90,25], 'Callback', @add2ana_click); %Add files selected in dblist to analysisdblist
+addnext = uicontrol('Style','checkbox','String','Add Next','Position',[440,240,70,20], 'Value', 0); %Add the next shot to analysisdblist
 nextimgname_text = uicontrol('Style','text','String','Next Image Name: [Ins]','Position',[440,45,120,15]);
 nextimgname = uicontrol('Style','edit','Position',[440,20,160,25],'KeyPressFcn', @nextimgname_enter); %Next shot name
 
@@ -178,7 +192,9 @@ fittype_text = uicontrol('Style','text','String','Fit with:','Position',[1200,42
 fittypelist = uicontrol('Style','listbox', 'min' , 0, 'max' , 1, 'Position', [1210, 335, 130,85]); %List of fit types (gaussian, lorenzian, etc)
 
 % Additional buttons
-nextnamecheck = uicontrol('Style','checkbox','String','Specify next name','Position',[870,130,120,20], 'Value', 0); %To check if each shot gives plot for fit
+nextname_text = uicontrol('Style','text','String','Specify next name:','Position',[870,185,100,20]); 
+nextnameOption = uicontrol('Style','popupmenu','String',{'None','Text','Text + Variable'},'Position',[870, 165, 120, 20]); %To check how name is specified for new image
+extractimgbut = uicontrol('Style','pushbutton','String','Extract roi to tiff','Position',[870,130,120,25], 'Callback', @extractimg_click); %To extract image in roi to tiff
 deltempbut = uicontrol('Style','pushbutton','String','Delete Temp Data','Position',[870,90,120,30], 'Callback', @deltemp_click); %Delete temporary data in database
 closefigsbut = uicontrol('Style','pushbutton','String','Close sub figures','Position',[870,20,120,25], 'Callback', @closefig_click); %Close all figures except GUI
 clearlastfitbut= uicontrol('Style','pushbutton','String','Clear last fit data','Position',[870,55,120,25], 'Callback', @clearlastfit_click); %Clears last fit data (to be used in case of change of cursor or angle)
@@ -243,11 +259,13 @@ fitlist_text.Units = 'normalized';
 fitlist.Units = 'normalized';
 fittype_text.Units = 'normalized';
 fittypelist.Units = 'normalized';
+extractimgbut.Units = 'normalized';
 deltempbut.Units = 'normalized';
 closefigsbut.Units = 'normalized';
 fitoutputnum_text.Units = 'normalized';
 fitoutputnum.Units = 'normalized';
-nextnamecheck.Units = 'normalized';
+nextname_text.Units = 'normalized';
+nextnameOption.Units = 'normalized';
 clearlastfitbut.Units = 'normalized';
 xvarincrement.Units = 'normalized';
 xvardecrement.Units = 'normalized';
@@ -342,8 +360,23 @@ function updateimgidlist()
         imgidlist=newimgidlist;
     end  
     if max(cell2mat(imgidlist)) > m
-        if get(nextnamecheck,'Value') == 1
+        if get(nextnameOption,'Value') == 2
             nextname=get(nextimgname,'String');
+            sqlquery2=['UPDATE images SET name ="', nextname,'" WHERE imageID = ', num2str(max(cell2mat(imgidlist)))];
+            curs2=exec(conn, sqlquery2);
+            close(curs2);
+        elseif get(nextnameOption, 'Value') == 3
+            namepart=get(nextimgname,'String');
+            %Determine variable value to add to name string
+            var_names=get(xvardropmenu,'String');
+            var_value=get(xvardropmenu,'Value');
+            var=var_names{var_value};            
+            sqlquery3=['SELECT ',var,' FROM ciceroout WHERE runID = (SELECT runID_fk FROM images ORDER BY imageID DESC LIMIT 1)'];
+            curs3=exec(conn, sqlquery3);
+            curs3=fetch(curs3);
+            varValue=num2str(cell2mat(curs3.Data));
+            close(curs3);
+            nextname=[namepart,' ',varValue];
             sqlquery2=['UPDATE images SET name ="', nextname,'" WHERE imageID = ', num2str(max(cell2mat(imgidlist)))];
             curs2=exec(conn, sqlquery2);
             close(curs2);
@@ -1213,7 +1246,7 @@ end
 
 %% To update list of all variables in database (SQL can be edited to make it a particular table instead)
 function updatexvardropmenu()
-    sqlquery='SELECT COLUMN_NAME FROM information_schema.columns WHERE table_name="ciceroOut"';
+    sqlquery='SELECT COLUMN_NAME FROM information_schema.columns WHERE table_name="ciceroOut" AND COLUMN_NAME NOT LIKE "_unusedcolumn_%"';
     curs1=exec(conn, sqlquery);
     curs1=fetch(curs1);
     columndata = curs1.Data;
@@ -1243,6 +1276,20 @@ function [type] = getfittype()
             case 6
                 type='';  %No fit type case. Add custom fit type here & updatefittypelist()
      end
+end
+
+%% Extract specified ROI of image shown in analyzer to tiff, opens prompt to specify destination
+function extractimg_click(~, ~)
+    framenum=get(framelist, 'Value');
+    imgmode = getImgMode();
+    imgid=cell2mat(currentimgid);
+    data = get_roi(imgid,imgmode,framenum);
+    
+    [filename, pathname] = uiputfile('.tiff','Save as');
+
+    imwrite(data,'temp.png','png'); %Need to write it as png and transfer from png to tiff since writing directly to tiff throws error 
+    c=imread('temp.png');
+    imwrite(c,[pathname '\' filename],'tiff');
 end
 
 %% Delete all imageID marked as Temp (should be done every few days)

@@ -1,16 +1,8 @@
 function [centery] = CoMV1_0(a, eachplot)
 
-% rescaling of the figure, done automatically in Winview
-% F = -log(double(a(670:770,540:640,1)));
-% G = -log(double(a(670:770,540:640,1)))';
-% figure;imagesc(F)
-%a=-log(u);
 F = a';
 G = a;
-% figure;
-% imagesc(F);
 
-%finding the center and subtracting background
 r = size(F(:,1),1); % the y-image size
 s = size(G(:,1),1); % the x-image size
 
