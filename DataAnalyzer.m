@@ -68,7 +68,7 @@ function DataAnalyzer
 %  Create UI 
 f = figure('Name', 'Data Analysis Software','Visible','on','Position',[50,50,1600,950],'WindowKeyPressFcn',@globalShortcuts);
 
-[zoom_icon,pan_icon,curs_icon,rotate_icon]=icon_update();
+[zoom_icon,pan_icon,curs_icon,rotate_icon,spinDiff_icon]=icon_update();
 
 %Database Connection
 conn = database('becivdatabase', 'root', 'w0lfg4ng', 'Server', '18.62.27.10', 'Vendor', 'MySQL'); 
@@ -105,9 +105,11 @@ imgModeText = uicontrol('Style','text','String','Imaging Mode:','Position',[820,
 imgMode = uicontrol('Style','popupmenu','String',{'Normal','Kinetics 2','Kinetics 3'},'Position',[820, 880, 80, 20],'Callback',@hdwmode_change);
 
 % PCA
-pcacbox = uicontrol('Style','checkbox','String','Apply PCA','Position',[820,800,90,20],'Value',0,'Callback',@pca_click);
-pcashowbox = uicontrol('Style','checkbox','String','Show PCA','Position',[820,825,90,20],'Value',0,'Callback',@pca_click);
-pcaTest = uicontrol('Style','checkbox','String','PCA Test','Position',[820,850,90,20],'Value',0,'Callback',@pca_click);
+pcacbox = uicontrol('Style','checkbox','String','Apply PCA','Position',[820,800,90,20],'Value',0,'Callback',@reImg_click);
+pcashowbox = uicontrol('Style','checkbox','String','Show PCA','Position',[820,825,90,20],'Value',0,'Callback',@reImg_click);
+
+% % Spin-Difference
+% spinDiff = uicontrol('Style','checkbox','String','Spin-Difference Imaging','Position',[820,850,90,20],'Value',0,'Callback',@reImg_click);
 
 % Tool box for img
 zon = uicontrol('Style','togglebutton','CData', zoom_icon,'Position',[855,650,25,25], 'Callback', @zoom_on); %Zoom On for Img
@@ -117,6 +119,7 @@ panbtn = uicontrol('Style','togglebutton','CData', pan_icon, 'Position',[935,650
 rotatebtn = uicontrol('Style','togglebutton','CData', rotate_icon, 'Position',[820,610,25,25],'Callback', @rotate_on); %Rotate for Img axes
 rotangleinput = uicontrol('Style','edit','String',rotangle,'Position',[855,610,25,25],'Callback', @enter_rotangle); %Angle to rotate image by
 colormapname = uicontrol('Style','popupmenu','String',{'Color';'B&W'},'Position',[910,610,50,25], 'Callback', @colormapname_click); %Color map for img axes
+spinDiff = uicontrol('Style','togglebutton','CData',spinDiff_icon,'Position',[820,850,25,25],'Callback',@reImg_click);
 
 rotincrement = uicontrol('Style','pushbutton','String','+','Position',[880,623,25,12],'Callback',@rotinc_click);
 rotdecrement = uicontrol('Style','pushbutton','String','-','Position',[880,610,25,12],'Callback',@rotdec_click);
@@ -280,7 +283,7 @@ pcacbox.Units = 'normalized';
 pcashowbox.Units = 'normalized';
 imgModeText.Units = 'normalized';
 imgMode.Units = 'normalized';
-pcaTest.Units = 'normalized';
+spinDiff.Units = 'normalized';
 
 
 %% Initialize the UI
@@ -322,7 +325,7 @@ end
 
 
 %% Defining all icons for toolbox for img
-function [zoom_icon,pan_icon,curs_icon,rotate_icon] = icon_update()
+function [zoom_icon,pan_icon,curs_icon,rotate_icon,spinDiff_icon] = icon_update()
     currentfolder = pwd;
     %Zoom icon
     [abc,~,alpha] = imread(fullfile(currentfolder,'tool_zoom_in.png'));
@@ -340,6 +343,10 @@ function [zoom_icon,pan_icon,curs_icon,rotate_icon] = icon_update()
     [abc,~,alpha] = imread(fullfile(currentfolder,'tool_rotate_3d.png'));
     rotate_icon = double(abc)/256/256;
     rotate_icon(~alpha) = NaN;
+    %Spin Difference icon
+    [abc,~,alpha] = imread(fullfile(currentfolder,'spinDiffIcon.png'));
+    spinDiff_icon = double(abc)/256/256;
+    spinDiff_icon(~alpha) = NaN;
 end
 
 
@@ -573,7 +580,7 @@ function framelist_click(~, ~)
 end
 
 %% Call back function for clicking PCA checkbox
-function pca_click(~, ~)
+function reImg_click(~, ~)
     showimg(currentimgid);    
 end
 
@@ -607,9 +614,12 @@ function showimg(filenum)
     else
         colormap(img, gray);
     end
-    if framenum == 1
+    if (framenum == 1 && ~spinDiff.Value)
         caxis(img, [0 1.2]);
         [~] = colorbar(img,'XTickLabel',{'0' '1.20'}, 'XTick', [0 1.2]);
+    elseif spinDiff.Value
+        caxis(img, [-1.2 1.2]);
+        [~] = colorbar(img,'XTickLabel',{'-1.20' '1.20'}, 'XTick', [-1.2 1.2]);
     else
         caxis(img, [min(r(:)) max(r(:))]);
         [~] = colorbar(img,'XTickLabel',{num2str(min(r(:))) num2str(max(r(:)))},'XTick', [min(r(:)) max(r(:))]);
@@ -663,10 +673,6 @@ function [r] = getImage(imgid,imgmode,framenum)
         close(curs2); 
     end
     
-    if pcaTest.Value
-        bdata = mat2cell('null',1);
-    end
-    
     if (get(pcacbox,'Value') && framenum == 1 && strcmp('null',cell2mat(bdata))) % We haven't done PCA on this image yet.
         sqlquery2=['SELECT data, cameraID_fk FROM images WHERE imageID = ', num2str(imgid)];
         curs2=exec(conn, sqlquery2);
@@ -693,13 +699,12 @@ function [r] = getImage(imgid,imgmode,framenum)
         addToBasis(newPWOA);
         r = doPCA(newPWA);
 
-        if ~pcaTest.Value
         tableName = 'images';
         colName = {'pcadata'};
         data = {typecast(reshape(r,1,col*row),'int8')};
         whereClause = ['WHERE imageID = ', num2str(imgid)];
         update(conn,tableName,colName,data,whereClause);
-        end
+        
         pcaflag = true;
         
     elseif ((get(pcacbox,'Value') || get(pcashowbox,'Value')) && framenum == 1 && ~strcmp('null',cell2mat(bdata)))
@@ -729,7 +734,16 @@ function [r] = getImage(imgid,imgmode,framenum)
         r = data_evaluation(a, imgmode,framenum);
         
     end
-
+    
+    % spin-difference imaging
+    if spinDiff.Value
+        height = size(r,1);
+        spinUp = double(r(1:floor(height/2),:));
+        spinDown = double(r(floor(height/2)+1:2*floor(height/2),:));
+        r = log(spinUp./spinDown)./log(spinUp.*spinDown);
+%         r = spinUp-spinDown;
+    end
+    
     % rotate
     button_state = get(rotatebtn,'Value');
     if button_state == get(rotatebtn,'Max')
