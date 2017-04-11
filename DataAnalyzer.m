@@ -1246,7 +1246,7 @@ end
 
 %% To update list of all variables in database (SQL can be edited to make it a particular table instead)
 function updatexvardropmenu()
-    sqlquery='SELECT COLUMN_NAME FROM information_schema.columns WHERE table_name="ciceroOut"';
+    sqlquery='SELECT COLUMN_NAME FROM information_schema.columns WHERE table_name="ciceroOut" AND COLUMN_NAME NOT LIKE "_unusedcolumn_%"';
     curs1=exec(conn, sqlquery);
     curs1=fetch(curs1);
     columndata = curs1.Data;
