@@ -63,7 +63,7 @@ fitresult details:
     opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
     
     opts.Lower =        [0          0.7*nTotal  xFWHM/10    yFWHM/10   1.2      1.2      xpeak-30     ypeak-30];
-    opts.StartPoint =   [cfStart    nTotal      xFWHM       yFWHM      1.5      1.5   	 xpeak        ypeak];
+    opts.StartPoint =   [cfStart    nTotal      xFWHM       yFWHM      1.5      1.2   	 xpeak        ypeak];
     opts.Upper =        [1          1.3*nTotal  5*xFWHM     5*yFWHM    inf      inf      xpeak+30     ypeak+30];
     
     opts.MaxFunEvals = 800;

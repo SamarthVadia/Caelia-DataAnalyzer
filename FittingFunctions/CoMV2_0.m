@@ -10,7 +10,7 @@ OD = -log(a);
 centerx = mode(xcom);
 centery = mode(ycom);
 
-CoM = [centerx,centery];
+CoM = [centerx, centery];
 
 end
 
