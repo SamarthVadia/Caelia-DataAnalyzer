@@ -4,7 +4,7 @@ conn = database('becivdatabase', 'root', 'w0lfg4ng', 'Server', 'spicythaitofu', 
 
 imageID = 1200;     %Enter imageID here
 
-sqlquery2='SELECT data FROM images WHERE imageID = 583';
+sqlquery2='SELECT data FROM images WHERE imageID = 112499';
 curs2=exec(conn, sqlquery2);
 curs2=fetch(curs2);
 bdata=curs2.Data;
@@ -17,7 +17,7 @@ framenum=1;     % Frame Number (1-Final, 2-PWA, 3-PWOA, 4-DF)
 b=data_evaluation(a,imgmode,framenum);
 data=cast(b,'single');
 
-[filename, pathname] = uiputfile('.tiff','Save as');
+[filename, pathname] = uiputfile('.mat','Save as');
 
 imwrite(data,'a.png','png');
 c=imread('a.png');

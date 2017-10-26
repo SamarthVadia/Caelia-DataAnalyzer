@@ -18,8 +18,8 @@ colormapname_click (~, ~) - change colormap (Color vs B/W)
 getImgMode() - gets the image mode requested. 1 = normal, 2 = kinetics with two frames, 3 = kinetics all on one frame
 showimg(filenum) - plots image for selected imageID (called by dblist_click and other functions)
 doPCA(imgIn) - performs PCA on the selected PWA image using the global eigenBasis
-addToBasis(newImg) - adds a new col*row image to the PCA basis and updates the eigenbasis
-getImage(imgid,imgmode,framenum) - gets the requested image from the database
+addToBasis(newImg) - adds a new col*row image toclear the PCA basis and updates the eigenbasis
+getImage(imgid,imgmode,frame6num) - gets the requested image from the database
 data_evaluation(raw_data, imgmode, framenum) - in separate *.m file, determines data from various parameters (for showimg, update, fit functions)
 get_roi(imgid,imgmode,framenum) - gets the ROI as set by the cursors
 load_click(source, eventdata) - load particular imageID into viewing list
@@ -301,7 +301,7 @@ updatexvardropmenu();
 loadPCABasis();
 pcaflag = false;
 
-
+    
 showimg(currentimgid);
 while true 
     if ~ishandle(dblist)
