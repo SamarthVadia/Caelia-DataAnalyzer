@@ -1,4 +1,4 @@
-    imageID = 161462;
+    imageID = 169852;
 
     conn = database('becivdatabase', 'root', 'w0lfg4ng', 'Server', 'thedarkknight', 'Vendor', 'MySQL');
 
@@ -22,13 +22,15 @@
     b=data_evaluation(a,imgmode,framenum);
     %density =  imrotate(-log(double(b)),47);
     %density =  imrotate(double(b),49);
-    density =  imrotate(b,49);
-density = density(565:966,685:775);
-a=-log(density);
-F = a;    
-%%
-r = size(F(:,1),1); % the y-image size
-index = (1:r)'; % a column vector enumerating the pixels of the image
+    density =  imrotate(b,-42.5);
+density = density(548:853,502:778);
+% a=-log(density);
+% F = a;    
+% %%
+% r = size(F(:,1),1); % the y-image size
+% index = (1:r)'; % a column vector enumerating the pixels of the image
+% 
+% % Taking a sum to use as the main fitting data
+% projection = sum(F,2);
 
-% Taking a sum to use as the main fitting data
-projection = sum(F,2);
+imagesc(density)
